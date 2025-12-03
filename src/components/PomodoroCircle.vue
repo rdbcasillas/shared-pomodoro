@@ -82,15 +82,17 @@ const setupVisualization = () => {
     .attr('x2', '100%')
     .attr('y2', '100%')
 
+  const currentColors = phaseColors[props.phase]
+
   gradient
     .append('stop')
     .attr('offset', '0%')
-    .attr('stop-color', phaseColors[props.phase].gradient[0])
+    .attr('stop-color', currentColors.gradient[0] as string)
 
   gradient
     .append('stop')
     .attr('offset', '100%')
-    .attr('stop-color', phaseColors[props.phase].gradient[1])
+    .attr('stop-color', currentColors.gradient[1] as string)
 
   // Glow filter
   const filter = defs
@@ -139,7 +141,7 @@ const setupVisualization = () => {
     .append('circle')
     .attr('r', radius - 30)
     .attr('fill', 'none')
-    .attr('stroke', phaseColors[props.phase].secondary)
+    .attr('stroke', currentColors.secondary as string)
     .attr('stroke-width', 2)
     .attr('opacity', 0.5)
 

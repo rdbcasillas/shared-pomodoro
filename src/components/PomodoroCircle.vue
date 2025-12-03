@@ -177,9 +177,10 @@ const setupVisualization = () => {
   // Store update function for later use
   ;(svgRef.value as any).__updateProgress = updateProgress
   ;(svgRef.value as any).__updateColors = () => {
-    gradient.select('stop:nth-child(1)').attr('stop-color', phaseColors[props.phase].gradient[0])
-    gradient.select('stop:nth-child(2)').attr('stop-color', phaseColors[props.phase].gradient[1])
-    pulseCircle.attr('stroke', phaseColors[props.phase].secondary)
+    const colors = phaseColors[props.phase]
+    gradient.select('stop:nth-child(1)').attr('stop-color', colors.gradient[0] as string)
+    gradient.select('stop:nth-child(2)').attr('stop-color', colors.gradient[1] as string)
+    pulseCircle.attr('stroke', colors.secondary as string)
   }
 }
 

@@ -6,7 +6,12 @@
     </div>
 
     <div class="main-content">
-      <div v-if="!pomodoroState.isRunning" class="not-started">
+      <div v-if="!isConnected" class="loading-state">
+        <div class="spinner"></div>
+        <p>Connecting to The Loop...</p>
+      </div>
+
+      <div v-else-if="!pomodoroState.isRunning" class="not-started">
         <div class="waiting-message">
           <div class="pulse-dot"></div>
           <h2>Waiting to Start</h2>
@@ -105,7 +110,7 @@ import { useAdminAuth } from '@/composables/useAdminAuth'
 import PomodoroCircle from '@/components/PomodoroCircle.vue'
 import AdminLogin from '@/components/AdminLogin.vue'
 
-const { state: pomodoroState, formatTime, startTimer, stopTimer } = usePomodoro()
+const { state: pomodoroState, formatTime, startTimer, stopTimer, isConnected } = usePomodoro()
 const { isAdmin } = useAdminAuth()
 </script>
 
@@ -142,6 +147,39 @@ const { isAdmin } = useAdminAuth()
 .main-content {
   max-width: 600px;
   margin: 0 auto;
+}
+
+.loading-state {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 2rem;
+  padding: 4rem 2rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(255, 255, 255, 0.2);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-state p {
+  margin: 0;
+  font-size: 1.125rem;
+  opacity: 0.9;
 }
 
 .not-started {

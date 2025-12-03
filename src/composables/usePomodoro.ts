@@ -28,6 +28,7 @@ let socket: Socket | null = null
 // Shared state across all instances
 const startTimestamp = ref<number | null>(null)
 const currentTime = ref(Date.now())
+const isConnected = ref(false)
 let intervalId: number | undefined
 
 // Initialize socket connection once
@@ -41,6 +42,7 @@ const initSocket = () => {
   // Listen for timer state updates from server
   socket.on('timer:state', (state: any) => {
     startTimestamp.value = state.startTimestamp
+    isConnected.value = true
   })
 
   socket.on('timer:started', (state: any) => {
@@ -53,10 +55,12 @@ const initSocket = () => {
 
   socket.on('connect', () => {
     console.log('✅ Connected to The Loop server')
+    // Don't set isConnected here - wait for timer:state
   })
 
   socket.on('disconnect', () => {
     console.log('❌ Disconnected from The Loop server')
+    isConnected.value = false
   })
 
   return socket
@@ -172,6 +176,7 @@ export function usePomodoro() {
     state,
     formatTime,
     startTimer,
-    stopTimer
+    stopTimer,
+    isConnected
   }
 }

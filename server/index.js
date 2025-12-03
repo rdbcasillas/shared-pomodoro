@@ -10,6 +10,7 @@ const io = new Server(httpServer, {
     origin: [
       'http://localhost:5173',
       'http://localhost:3000',
+      'https://theloop.up.railway.app',
       'https://shared-pomodoro-production.up.railway.app',
       'https://beautiful-reverence-production-b252.up.railway.app'
     ],

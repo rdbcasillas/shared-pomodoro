@@ -10,8 +10,7 @@ const io = new Server(httpServer, {
     origin: [
       'http://localhost:5173',
       'http://localhost:3000',
-      'https://your-app-name.netlify.app', // Replace with your actual Netlify URL
-      'https://your-app-name.vercel.app'   // Or Vercel URL
+      'https://shared-pomodoro-production.up.railway.app'
     ],
     methods: ['GET', 'POST']
   }

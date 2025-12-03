@@ -27,8 +27,20 @@
           <div class="phase-badge" :class="`phase-${pomodoroState.phase}`">
             {{ pomodoroState.phaseLabel }}
           </div>
-          <div class="cycle-indicator">
-            Cycle {{ pomodoroState.cycleNumber }} of 4
+          <div class="cycle-progress">
+            <div class="progress-label">Session Progress</div>
+            <div class="progress-dots">
+              <div
+                v-for="(segment, index) in cycleSegments"
+                :key="index"
+                class="progress-dot"
+                :class="[
+                  `dot-${segment.type}`,
+                  { active: index === currentSegmentIndex, completed: index < currentSegmentIndex }
+                ]"
+                :title="segment.label"
+              ></div>
+            </div>
           </div>
         </div>
 
@@ -97,7 +109,7 @@
             <ul>
               <li><span class="phase-dot work"></span> 32 min Work</li>
               <li><span class="phase-dot short-break"></span> 8 min Short Break</li>
-              <li><span class="phase-dot long-break"></span> 30 min Long Break (every 3 cycles)</li>
+              <li><span class="phase-dot long-break"></span> 48 min Long Break (after 3 work sessions)</li>
             </ul>
           </div>
         </div>
@@ -111,14 +123,146 @@
 </template>
 
 <script setup lang="ts">
+import { watch, ref, computed } from 'vue'
 import { usePomodoro } from '@/composables/usePomodoro'
 import { useAdminAuth } from '@/composables/useAdminAuth'
+import { usePersonalTasks } from '@/composables/usePersonalTasks'
 import PomodoroCircle from '@/components/PomodoroCircle.vue'
 import AdminLogin from '@/components/AdminLogin.vue'
 import PersonalTaskTracker from '@/components/PersonalTaskTracker.vue'
 
 const { state: pomodoroState, formatTime, startTimer, stopTimer, isConnected } = usePomodoro()
 const { isAdmin } = useAdminAuth()
+const { completeSession, currentTask } = usePersonalTasks()
+
+// Define the full cycle pattern (3 work sessions + 2 short breaks + 1 long break)
+const cycleSegments = [
+  { type: 'work', label: 'Work 1' },
+  { type: 'short-break', label: 'Break 1' },
+  { type: 'work', label: 'Work 2' },
+  { type: 'short-break', label: 'Break 2' },
+  { type: 'work', label: 'Work 3' },
+  { type: 'long-break', label: 'Long Break' }
+]
+
+// Calculate current segment index based on phase and cycle
+const currentSegmentIndex = computed(() => {
+  const phase = pomodoroState.value.phase
+  const cycle = pomodoroState.value.cycleNumber
+
+  if (cycle === 4) {
+    // Long break (after 3rd work session)
+    return 5
+  } else {
+    // Cycles 1-3
+    const baseIndex = (cycle - 1) * 2
+    return phase === 'work' ? baseIndex : baseIndex + 1
+  }
+})
+
+// Track previous phase to detect completion
+const previousPhase = ref(pomodoroState.value.phase)
+const previousRemainingSeconds = ref(pomodoroState.value.remainingSeconds)
+
+// Sound notifications with audio context
+let audioContext: AudioContext | null = null
+
+// Initialize audio context on first user interaction
+const initAudioContext = () => {
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+    console.log('🔊 Audio context initialized')
+  }
+  return audioContext
+}
+
+// Generate simple beep sounds using Web Audio API
+const generateBeep = (frequency: number, duration: number) => {
+  try {
+    const ctx = initAudioContext()
+    if (!ctx) return
+
+    const oscillator = ctx.createOscillator()
+    const gainNode = ctx.createGain()
+
+    oscillator.connect(gainNode)
+    gainNode.connect(ctx.destination)
+
+    oscillator.frequency.value = frequency
+    oscillator.type = 'sine'
+
+    gainNode.gain.setValueAtTime(0.3, ctx.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration)
+
+    oscillator.start(ctx.currentTime)
+    oscillator.stop(ctx.currentTime + duration)
+
+    console.log(`🔔 Playing beep: ${frequency}Hz for ${duration}s`)
+  } catch (error) {
+    console.error('Failed to play beep:', error)
+  }
+}
+
+const playWorkCompleteSound = () => {
+  console.log('🎵 Work session complete - playing 3 beeps (x2)')
+  // First sequence - three ascending beeps
+  generateBeep(440, 0.15) // A4
+  setTimeout(() => generateBeep(554, 0.15), 150) // C#5
+  setTimeout(() => generateBeep(659, 0.3), 300) // E5
+  // Second sequence - repeat after a brief pause
+  setTimeout(() => generateBeep(440, 0.15), 700) // A4
+  setTimeout(() => generateBeep(554, 0.15), 850) // C#5
+  setTimeout(() => generateBeep(659, 0.3), 1000) // E5
+}
+
+const playBreakCompleteSound = () => {
+  console.log('🎵 Break complete - playing 2 beeps (x2)')
+  // First sequence - two gentle beeps
+  generateBeep(523, 0.2) // C5
+  setTimeout(() => generateBeep(523, 0.2), 250) // C5
+  // Second sequence - repeat after a brief pause
+  setTimeout(() => generateBeep(523, 0.2), 500) // C5
+  setTimeout(() => generateBeep(523, 0.2), 750) // C5
+}
+
+// Initialize audio on any user interaction
+if (typeof window !== 'undefined') {
+  window.addEventListener('click', initAudioContext, { once: true })
+  window.addEventListener('keydown', initAudioContext, { once: true })
+}
+
+// Watch for phase changes to detect session completion
+watch(
+  () => pomodoroState.value.phase,
+  (newPhase, oldPhase) => {
+    console.log(`Phase changed: ${oldPhase} → ${newPhase}`)
+    if (oldPhase && newPhase !== oldPhase && pomodoroState.value.isRunning) {
+      const duration = previousRemainingSeconds.value
+      console.log(`Session completed! Phase: ${oldPhase}, Duration: ${duration}s`)
+
+      // Play sound notifications for all phase completions
+      if (oldPhase === 'work') {
+        playWorkCompleteSound()
+        // Only save to history if there's a task written
+        if (currentTask.value.trim()) {
+          completeSession(oldPhase, duration)
+          console.log('✅ Task saved to history')
+        }
+      } else if (oldPhase === 'short-break' || oldPhase === 'long-break') {
+        playBreakCompleteSound()
+      }
+    }
+    previousPhase.value = newPhase
+  }
+)
+
+// Track remaining seconds for duration calculation
+watch(
+  () => pomodoroState.value.remainingSeconds,
+  (newSeconds) => {
+    previousRemainingSeconds.value = newSeconds
+  }
+)
 </script>
 
 <style scoped>
@@ -297,10 +441,71 @@ const { isAdmin } = useAdminAuth()
   box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
 }
 
-.cycle-indicator {
-  font-size: 1rem;
-  opacity: 0.8;
+.cycle-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.progress-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
   font-weight: 500;
+}
+
+.progress-dots {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.progress-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  opacity: 0.4;
+  border: 2px solid transparent;
+}
+
+.progress-dot.dot-work {
+  background: #ef4444;
+  border-color: #ef4444;
+}
+
+.progress-dot.dot-short-break {
+  background: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.progress-dot.dot-long-break {
+  background: #8b5cf6;
+  border-color: #8b5cf6;
+}
+
+.progress-dot.completed {
+  opacity: 0.6;
+  transform: scale(0.85);
+}
+
+.progress-dot.active {
+  opacity: 1;
+  transform: scale(1.3);
+  box-shadow: 0 0 12px currentColor;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    box-shadow: 0 0 12px currentColor;
+  }
+  50% {
+    box-shadow: 0 0 20px currentColor;
+  }
 }
 
 .countdown {

@@ -18,9 +18,10 @@ export interface PomodoroState {
 // Duration in milliseconds
 const WORK_DURATION = 32 * 60 * 1000 // 32 minutes
 const SHORT_BREAK_DURATION = 8 * 60 * 1000 // 8 minutes
-const LONG_BREAK_DURATION = 30 * 60 * 1000 // 30 minutes
-const CYCLE_DURATION = WORK_DURATION + SHORT_BREAK_DURATION // 40 minutes
-const LONG_BREAK_BLOCK = 3 * CYCLE_DURATION + LONG_BREAK_DURATION // 150 minutes
+const LONG_BREAK_DURATION = 48 * 60 * 1000 // 48 minutes
+const CYCLE_DURATION = WORK_DURATION + SHORT_BREAK_DURATION // One work + break cycle
+// Correct structure: W+B, W+B, W, LB = 2 cycles + 1 work + long break
+const FULL_BLOCK_DURATION = 2 * CYCLE_DURATION + WORK_DURATION + LONG_BREAK_DURATION
 
 // Singleton socket instance
 let socket: Socket | null = null
@@ -86,17 +87,21 @@ export function usePomodoro() {
     }
 
     const elapsed = currentTime.value - startTimestamp.value
-    const positionInBlock = elapsed % LONG_BREAK_BLOCK
+    const positionInBlock = elapsed % FULL_BLOCK_DURATION
 
     // Determine which phase we're in
+    // Structure: W1+B1 (cycle 1), W2+B2 (cycle 2), W3, Long Break
     let phase: Phase
     let phaseLabel: string
     let remainingMs: number
     let totalMs: number
     let cycleNumber: number
 
-    if (positionInBlock < 3 * CYCLE_DURATION) {
-      // We're in one of the first 3 cycles
+    const twoCompleteCycles = 2 * CYCLE_DURATION
+    const threeWorkSessions = twoCompleteCycles + WORK_DURATION
+
+    if (positionInBlock < twoCompleteCycles) {
+      // We're in one of the first 2 cycles (W+B, W+B)
       const positionInCycle = positionInBlock % CYCLE_DURATION
       cycleNumber = Math.floor(positionInBlock / CYCLE_DURATION) + 1
 
@@ -111,12 +116,20 @@ export function usePomodoro() {
         remainingMs = CYCLE_DURATION - positionInCycle
         totalMs = SHORT_BREAK_DURATION
       }
+    } else if (positionInBlock < threeWorkSessions) {
+      // Third work session (after 2nd break, before long break)
+      phase = 'work'
+      phaseLabel = 'Work Session 3'
+      cycleNumber = 3
+      const positionInWork3 = positionInBlock - twoCompleteCycles
+      remainingMs = WORK_DURATION - positionInWork3
+      totalMs = WORK_DURATION
     } else {
-      // Long break
+      // Long break (after 3rd work session)
       phase = 'long-break'
       phaseLabel = 'Long Break'
       cycleNumber = 4
-      const positionInLongBreak = positionInBlock - 3 * CYCLE_DURATION
+      const positionInLongBreak = positionInBlock - threeWorkSessions
       remainingMs = LONG_BREAK_DURATION - positionInLongBreak
       totalMs = LONG_BREAK_DURATION
     }

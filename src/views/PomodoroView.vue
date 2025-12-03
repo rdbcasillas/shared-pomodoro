@@ -5,13 +5,14 @@
       <p class="subtitle">Global Focus Rhythm</p>
     </div>
 
-    <div class="main-content">
-      <div v-if="!isConnected" class="loading-state">
+    <div class="content-wrapper">
+      <div class="main-content">
+        <div v-if="!isConnected" class="loading-state">
         <div class="spinner"></div>
         <p>Connecting to The Loop...</p>
       </div>
 
-      <div v-else-if="!pomodoroState.isRunning" class="not-started">
+        <div v-else-if="!pomodoroState.isRunning" class="not-started">
         <div class="waiting-message">
           <div class="pulse-dot"></div>
           <h2>Waiting to Start</h2>
@@ -21,7 +22,7 @@
         </div>
       </div>
 
-      <div v-else class="timer-active">
+        <div v-else class="timer-active">
         <div class="phase-header">
           <div class="phase-badge" :class="`phase-${pomodoroState.phase}`">
             {{ pomodoroState.phaseLabel }}
@@ -52,53 +53,58 @@
             Long break time! Rest well before the next cycle begins.
           </p>
         </div>
-      </div>
-    </div>
+        </div>
 
-    <div v-if="isAdmin || !pomodoroState.isRunning" class="admin-controls">
-      <div class="admin-header">
-        <svg
-          class="lock-icon"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-          />
-        </svg>
-        <span>Admin Controls</span>
+        <div v-if="isAdmin || !pomodoroState.isRunning" class="admin-controls">
+          <div class="admin-header">
+            <svg
+              class="lock-icon"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+              />
+            </svg>
+            <span>Admin Controls</span>
+          </div>
+
+          <AdminLogin />
+
+          <div v-if="isAdmin" class="button-group">
+            <button
+              v-if="!pomodoroState.isRunning"
+              @click="startTimer"
+              class="btn btn-start"
+            >
+              Start Global Timer
+            </button>
+            <button v-else @click="stopTimer" class="btn btn-stop">Stop Timer</button>
+          </div>
+          <div v-else class="viewer-message">
+            <p>You are viewing the global timer. Only admins can control it.</p>
+          </div>
+        </div>
+
+        <div class="info-section">
+          <div class="info-card">
+            <h3>Rhythm Pattern</h3>
+            <ul>
+              <li><span class="phase-dot work"></span> 32 min Work</li>
+              <li><span class="phase-dot short-break"></span> 8 min Short Break</li>
+              <li><span class="phase-dot long-break"></span> 30 min Long Break (every 3 cycles)</li>
+            </ul>
+          </div>
+        </div>
       </div>
 
-      <AdminLogin />
-
-      <div v-if="isAdmin" class="button-group">
-        <button
-          v-if="!pomodoroState.isRunning"
-          @click="startTimer"
-          class="btn btn-start"
-        >
-          Start Global Timer
-        </button>
-        <button v-else @click="stopTimer" class="btn btn-stop">Stop Timer</button>
-      </div>
-      <div v-else class="viewer-message">
-        <p>You are viewing the global timer. Only admins can control it.</p>
-      </div>
-    </div>
-
-    <div class="info-section">
-      <div class="info-card">
-        <h3>Rhythm Pattern</h3>
-        <ul>
-          <li><span class="phase-dot work"></span> 32 min Work</li>
-          <li><span class="phase-dot short-break"></span> 8 min Short Break</li>
-          <li><span class="phase-dot long-break"></span> 30 min Long Break (every 3 cycles)</li>
-        </ul>
+      <div class="side-panel">
+        <PersonalTaskTracker />
       </div>
     </div>
   </div>
@@ -109,6 +115,7 @@ import { usePomodoro } from '@/composables/usePomodoro'
 import { useAdminAuth } from '@/composables/useAdminAuth'
 import PomodoroCircle from '@/components/PomodoroCircle.vue'
 import AdminLogin from '@/components/AdminLogin.vue'
+import PersonalTaskTracker from '@/components/PersonalTaskTracker.vue'
 
 const { state: pomodoroState, formatTime, startTimer, stopTimer, isConnected } = usePomodoro()
 const { isAdmin } = useAdminAuth()
@@ -124,7 +131,25 @@ const { isAdmin } = useAdminAuth()
 
 .header {
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: 2rem;
+}
+
+.content-wrapper {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+@media (min-width: 1024px) {
+  .content-wrapper {
+    grid-template-columns: 1fr 400px;
+  }
+}
+
+.side-panel {
+  min-height: 600px;
 }
 
 .title {
@@ -145,8 +170,9 @@ const { isAdmin } = useAdminAuth()
 }
 
 .main-content {
-  max-width: 600px;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
 }
 
 .loading-state {
@@ -314,8 +340,6 @@ const { isAdmin } = useAdminAuth()
 }
 
 .admin-controls {
-  max-width: 600px;
-  margin: 2rem auto;
   padding: 1.5rem;
   background: rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(10px);
@@ -399,8 +423,7 @@ const { isAdmin } = useAdminAuth()
 }
 
 .info-section {
-  max-width: 600px;
-  margin: 2rem auto;
+  width: 100%;
 }
 
 .info-card {
@@ -729,6 +752,36 @@ const { isAdmin } = useAdminAuth()
   }
 }
 
+/* Mobile stacking */
+@media (max-width: 1023px) {
+  .content-wrapper {
+    grid-template-columns: 1fr;
+  }
+
+  .side-panel {
+    order: 2;
+    min-height: auto;
+  }
+
+  .main-content {
+    order: 1;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 640px) and (max-width: 767px) {
+  .content-wrapper {
+    gap: 1.5rem;
+  }
+}
+
+/* Large desktop - wider side panel */
+@media (min-width: 1280px) {
+  .content-wrapper {
+    grid-template-columns: 1fr 450px;
+  }
+}
+
 /* Landscape orientation for phones */
 @media (max-height: 600px) and (orientation: landscape) {
   .pomodoro-container {
@@ -765,9 +818,8 @@ const { isAdmin } = useAdminAuth()
     padding: 1rem;
   }
 
-  .admin-controls,
-  .info-section {
-    margin: 1rem auto;
+  .content-wrapper {
+    gap: 1rem;
   }
 }
 </style>

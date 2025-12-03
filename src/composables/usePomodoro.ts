@@ -1,6 +1,9 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { io, type Socket } from 'socket.io-client'
 
 export type Phase = 'work' | 'short-break' | 'long-break'
+
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001'
 
 export interface PomodoroState {
   phase: Phase
@@ -19,12 +22,51 @@ const LONG_BREAK_DURATION = 30 * 60 * 1000 // 30 minutes
 const CYCLE_DURATION = WORK_DURATION + SHORT_BREAK_DURATION // 40 minutes
 const LONG_BREAK_BLOCK = 3 * CYCLE_DURATION + LONG_BREAK_DURATION // 150 minutes
 
+// Singleton socket instance
+let socket: Socket | null = null
+
+// Shared state across all instances
+const startTimestamp = ref<number | null>(null)
+const currentTime = ref(Date.now())
+let intervalId: number | undefined
+
+// Initialize socket connection once
+const initSocket = () => {
+  if (socket) return socket
+
+  socket = io(SOCKET_URL, {
+    transports: ['websocket', 'polling']
+  })
+
+  // Listen for timer state updates from server
+  socket.on('timer:state', (state: any) => {
+    startTimestamp.value = state.startTimestamp
+  })
+
+  socket.on('timer:started', (state: any) => {
+    startTimestamp.value = state.startTimestamp
+  })
+
+  socket.on('timer:stopped', () => {
+    startTimestamp.value = null
+  })
+
+  socket.on('connect', () => {
+    console.log('✅ Connected to The Loop server')
+  })
+
+  socket.on('disconnect', () => {
+    console.log('❌ Disconnected from The Loop server')
+  })
+
+  return socket
+}
+
 export function usePomodoro() {
-  // Global start timestamp - hardcoded for now
-  // Set to null initially, will be set by admin
-  const startTimestamp = ref<number | null>(null)
-  const currentTime = ref(Date.now())
-  let intervalId: number | undefined
+  // Initialize socket on first use
+  if (!socket) {
+    initSocket()
+  }
 
   const state = computed<PomodoroState>(() => {
     if (startTimestamp.value === null) {
@@ -96,13 +138,17 @@ export function usePomodoro() {
   }
 
   const startTimer = () => {
-    startTimestamp.value = Date.now()
-    localStorage.setItem('pomodoroStartTime', startTimestamp.value.toString())
+    // Send start command to server
+    if (socket) {
+      socket.emit('timer:start', { adminId: 'admin' })
+    }
   }
 
   const stopTimer = () => {
-    startTimestamp.value = null
-    localStorage.removeItem('pomodoroStartTime')
+    // Send stop command to server
+    if (socket) {
+      socket.emit('timer:stop')
+    }
   }
 
   const updateCurrentTime = () => {
@@ -110,12 +156,7 @@ export function usePomodoro() {
   }
 
   onMounted(() => {
-    // Load start timestamp from localStorage if it exists
-    const saved = localStorage.getItem('pomodoroStartTime')
-    if (saved) {
-      startTimestamp.value = parseInt(saved, 10)
-    }
-
+    // Socket is already initialized at module level
     // Update every second
     intervalId = window.setInterval(updateCurrentTime, 1000)
   })
@@ -124,6 +165,7 @@ export function usePomodoro() {
     if (intervalId) {
       clearInterval(intervalId)
     }
+    // Note: We don't disconnect socket here as it's shared across components
   })
 
   return {

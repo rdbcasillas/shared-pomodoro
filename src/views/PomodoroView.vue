@@ -11,7 +11,8 @@
           <div class="pulse-dot"></div>
           <h2>Waiting to Start</h2>
           <p>The global Pomodoro session hasn't started yet.</p>
-          <p class="admin-note">Admin: Use the controls below to start the timer</p>
+          <p class="admin-note" v-if="isAdmin">Admin: Use the controls below to start the timer</p>
+          <p class="admin-note" v-else>Waiting for admin to start the global timer...</p>
         </div>
       </div>
 
@@ -49,7 +50,7 @@
       </div>
     </div>
 
-    <div class="admin-controls">
+    <div v-if="isAdmin || !pomodoroState.isRunning" class="admin-controls">
       <div class="admin-header">
         <svg
           class="lock-icon"
@@ -67,7 +68,10 @@
         </svg>
         <span>Admin Controls</span>
       </div>
-      <div class="button-group">
+
+      <AdminLogin />
+
+      <div v-if="isAdmin" class="button-group">
         <button
           v-if="!pomodoroState.isRunning"
           @click="startTimer"
@@ -76,6 +80,9 @@
           Start Global Timer
         </button>
         <button v-else @click="stopTimer" class="btn btn-stop">Stop Timer</button>
+      </div>
+      <div v-else class="viewer-message">
+        <p>You are viewing the global timer. Only admins can control it.</p>
       </div>
     </div>
 
@@ -94,9 +101,12 @@
 
 <script setup lang="ts">
 import { usePomodoro } from '@/composables/usePomodoro'
+import { useAdminAuth } from '@/composables/useAdminAuth'
 import PomodoroCircle from '@/components/PomodoroCircle.vue'
+import AdminLogin from '@/components/AdminLogin.vue'
 
 const { state: pomodoroState, formatTime, startTimer, stopTimer } = usePomodoro()
+const { isAdmin } = useAdminAuth()
 </script>
 
 <style scoped>
@@ -294,6 +304,21 @@ const { state: pomodoroState, formatTime, startTimer, stopTimer } = usePomodoro(
 .button-group {
   display: flex;
   gap: 1rem;
+  margin-top: 1rem;
+}
+
+.viewer-message {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 0.75rem;
+  text-align: center;
+}
+
+.viewer-message p {
+  margin: 0;
+  opacity: 0.8;
+  font-size: 0.9375rem;
 }
 
 .btn {

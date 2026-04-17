@@ -1,9 +1,15 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { io, type Socket } from 'socket.io-client'
 
-export type Phase = 'work' | 'short-break' | 'long-break'
+export type Phase = 'work' | 'break' | 'off-hours'
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001'
+// Schedule config — Mon–Fri 11:00–17:00 IST, 50 min work + 10 min break, 6 blocks/day.
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000 // IST is UTC+5:30, no DST
+const WINDOW_START_SEC = 11 * 3600 // 11:00 IST
+const WINDOW_END_SEC = 17 * 3600 // 17:00 IST
+const BLOCK_SEC = 60 * 60 // 60 min
+const WORK_SEC = 50 * 60 // 50 min
+const BREAK_SEC = 10 * 60 // 10 min
+export const BLOCKS_PER_DAY = Math.floor((WINDOW_END_SEC - WINDOW_START_SEC) / BLOCK_SEC) // 6
 
 export interface PomodoroState {
   phase: Phase
@@ -11,142 +17,90 @@ export interface PomodoroState {
   remainingSeconds: number
   totalSeconds: number
   progress: number
-  cycleNumber: number
-  isRunning: boolean
+  blockIndex: number // 0..5 within today's session; -1 when off-hours
+  nextSessionStart: number | null
 }
 
-// Duration in milliseconds
-const WORK_DURATION = 32 * 60 * 1000 // 32 minutes
-const SHORT_BREAK_DURATION = 8 * 60 * 1000 // 8 minutes
-const LONG_BREAK_DURATION = 48 * 60 * 1000 // 48 minutes
-const CYCLE_DURATION = WORK_DURATION + SHORT_BREAK_DURATION // One work + break cycle
-// Correct structure: W+B, W+B, W, LB = 2 cycles + 1 work + long break
-const FULL_BLOCK_DURATION = 2 * CYCLE_DURATION + WORK_DURATION + LONG_BREAK_DURATION
-
-// Singleton socket instance
-let socket: Socket | null = null
-
-// Shared state across all instances
-const startTimestamp = ref<number | null>(null)
 const currentTime = ref(Date.now())
-const isConnected = ref(false)
 let intervalId: number | undefined
 
-// Initialize socket connection once
-const initSocket = () => {
-  if (socket) return socket
+const istParts = (epochMs: number) => {
+  const shifted = new Date(epochMs + IST_OFFSET_MS)
+  return {
+    weekday: shifted.getUTCDay(), // 0=Sun, 1=Mon, ..., 6=Sat
+    hour: shifted.getUTCHours(),
+    minute: shifted.getUTCMinutes(),
+    second: shifted.getUTCSeconds(),
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth(),
+    date: shifted.getUTCDate(),
+    secondOfDay:
+      shifted.getUTCHours() * 3600 + shifted.getUTCMinutes() * 60 + shifted.getUTCSeconds()
+  }
+}
 
-  socket = io(SOCKET_URL, {
-    transports: ['websocket', 'polling']
-  })
+const istElevenAmMs = (year: number, month: number, date: number) =>
+  Date.UTC(year, month, date, 11, 0) - IST_OFFSET_MS
 
-  // Listen for timer state updates from server
-  socket.on('timer:state', (state: any) => {
-    startTimestamp.value = state.startTimestamp
-    isConnected.value = true
-  })
+const nextSessionStartMs = (nowMs: number): number | null => {
+  for (let offset = 0; offset < 8; offset++) {
+    const cand = istParts(nowMs + offset * 86400000)
+    if (cand.weekday < 1 || cand.weekday > 5) continue
+    const startMs = istElevenAmMs(cand.year, cand.month, cand.date)
+    if (startMs > nowMs) return startMs
+  }
+  return null
+}
 
-  socket.on('timer:started', (state: any) => {
-    startTimestamp.value = state.startTimestamp
-  })
+const computeState = (nowMs: number): PomodoroState => {
+  const { weekday, secondOfDay } = istParts(nowMs)
+  const inScheduleDay = weekday >= 1 && weekday <= 5
+  const inWindow =
+    inScheduleDay && secondOfDay >= WINDOW_START_SEC && secondOfDay < WINDOW_END_SEC
 
-  socket.on('timer:stopped', () => {
-    startTimestamp.value = null
-  })
+  if (!inWindow) {
+    return {
+      phase: 'off-hours',
+      phaseLabel: 'Off-hours',
+      remainingSeconds: 0,
+      totalSeconds: 0,
+      progress: 0,
+      blockIndex: -1,
+      nextSessionStart: nextSessionStartMs(nowMs)
+    }
+  }
 
-  socket.on('connect', () => {
-    console.log('✅ Connected to The Loop server')
-    // Don't set isConnected here - wait for timer:state
-  })
+  const secSinceStart = secondOfDay - WINDOW_START_SEC
+  const blockIndex = Math.floor(secSinceStart / BLOCK_SEC)
+  const withinBlock = secSinceStart % BLOCK_SEC
 
-  socket.on('disconnect', () => {
-    console.log('❌ Disconnected from The Loop server')
-    isConnected.value = false
-  })
+  if (withinBlock < WORK_SEC) {
+    const remaining = WORK_SEC - withinBlock
+    return {
+      phase: 'work',
+      phaseLabel: `Work ${blockIndex + 1} / ${BLOCKS_PER_DAY}`,
+      remainingSeconds: remaining,
+      totalSeconds: WORK_SEC,
+      progress: ((WORK_SEC - remaining) / WORK_SEC) * 100,
+      blockIndex,
+      nextSessionStart: null
+    }
+  }
 
-  return socket
+  const remaining = BLOCK_SEC - withinBlock
+  return {
+    phase: 'break',
+    phaseLabel: `Break ${blockIndex + 1} / ${BLOCKS_PER_DAY}`,
+    remainingSeconds: remaining,
+    totalSeconds: BREAK_SEC,
+    progress: ((BREAK_SEC - remaining) / BREAK_SEC) * 100,
+    blockIndex,
+    nextSessionStart: null
+  }
 }
 
 export function usePomodoro() {
-  // Initialize socket on first use
-  if (!socket) {
-    initSocket()
-  }
-
-  const state = computed<PomodoroState>(() => {
-    if (startTimestamp.value === null) {
-      return {
-        phase: 'work',
-        phaseLabel: 'Ready to Start',
-        remainingSeconds: WORK_DURATION / 1000,
-        totalSeconds: WORK_DURATION / 1000,
-        progress: 0,
-        cycleNumber: 0,
-        isRunning: false
-      }
-    }
-
-    const elapsed = currentTime.value - startTimestamp.value
-    const positionInBlock = elapsed % FULL_BLOCK_DURATION
-
-    // Determine which phase we're in
-    // Structure: W1+B1 (cycle 1), W2+B2 (cycle 2), W3, Long Break
-    let phase: Phase
-    let phaseLabel: string
-    let remainingMs: number
-    let totalMs: number
-    let cycleNumber: number
-
-    const twoCompleteCycles = 2 * CYCLE_DURATION
-    const threeWorkSessions = twoCompleteCycles + WORK_DURATION
-
-    if (positionInBlock < twoCompleteCycles) {
-      // We're in one of the first 2 cycles (W+B, W+B)
-      const positionInCycle = positionInBlock % CYCLE_DURATION
-      cycleNumber = Math.floor(positionInBlock / CYCLE_DURATION) + 1
-
-      if (positionInCycle < WORK_DURATION) {
-        phase = 'work'
-        phaseLabel = `Work Session ${cycleNumber}`
-        remainingMs = WORK_DURATION - positionInCycle
-        totalMs = WORK_DURATION
-      } else {
-        phase = 'short-break'
-        phaseLabel = `Short Break ${cycleNumber}`
-        remainingMs = CYCLE_DURATION - positionInCycle
-        totalMs = SHORT_BREAK_DURATION
-      }
-    } else if (positionInBlock < threeWorkSessions) {
-      // Third work session (after 2nd break, before long break)
-      phase = 'work'
-      phaseLabel = 'Work Session 3'
-      cycleNumber = 3
-      const positionInWork3 = positionInBlock - twoCompleteCycles
-      remainingMs = WORK_DURATION - positionInWork3
-      totalMs = WORK_DURATION
-    } else {
-      // Long break (after 3rd work session)
-      phase = 'long-break'
-      phaseLabel = 'Long Break'
-      cycleNumber = 4
-      const positionInLongBreak = positionInBlock - threeWorkSessions
-      remainingMs = LONG_BREAK_DURATION - positionInLongBreak
-      totalMs = LONG_BREAK_DURATION
-    }
-
-    const remainingSeconds = Math.ceil(remainingMs / 1000)
-    const progress = ((totalMs - remainingMs) / totalMs) * 100
-
-    return {
-      phase,
-      phaseLabel,
-      remainingSeconds,
-      totalSeconds: totalMs / 1000,
-      progress,
-      cycleNumber,
-      isRunning: true
-    }
-  })
+  const state = computed<PomodoroState>(() => computeState(currentTime.value))
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60)
@@ -154,42 +108,29 @@ export function usePomodoro() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  const startTimer = () => {
-    // Send start command to server
-    if (socket) {
-      socket.emit('timer:start', { adminId: 'admin' })
-    }
-  }
-
-  const stopTimer = () => {
-    // Send stop command to server
-    if (socket) {
-      socket.emit('timer:stop')
-    }
-  }
-
-  const updateCurrentTime = () => {
-    currentTime.value = Date.now()
+  const formatNextStart = (epochMs: number): string => {
+    const p = istParts(epochMs)
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    const hour12 = ((p.hour + 11) % 12) + 1
+    const ampm = p.hour < 12 ? 'AM' : 'PM'
+    return `${days[p.weekday]} ${hour12}:${p.minute.toString().padStart(2, '0')} ${ampm} IST`
   }
 
   onMounted(() => {
-    // Socket is already initialized at module level
-    // Update every second
-    intervalId = window.setInterval(updateCurrentTime, 1000)
+    if (!intervalId) {
+      intervalId = window.setInterval(() => {
+        currentTime.value = Date.now()
+      }, 1000)
+    }
   })
 
   onUnmounted(() => {
-    if (intervalId) {
-      clearInterval(intervalId)
-    }
-    // Note: We don't disconnect socket here as it's shared across components
+    // Shared interval; leave running for app lifetime.
   })
 
   return {
     state,
     formatTime,
-    startTimer,
-    stopTimer,
-    isConnected
+    formatNextStart
   }
 }

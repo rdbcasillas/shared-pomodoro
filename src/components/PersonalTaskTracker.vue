@@ -93,6 +93,8 @@ const formatDuration = (seconds: number): string => {
 
 const formatPhase = (phase: string): string => {
   if (phase === 'work') return 'Work Session'
+  if (phase === 'break') return 'Break'
+  // Legacy values from prior versions kept for backwards-compat with localStorage history
   if (phase === 'short-break') return 'Short Break'
   if (phase === 'long-break') return 'Long Break'
   return phase

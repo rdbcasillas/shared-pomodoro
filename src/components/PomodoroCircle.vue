@@ -7,11 +7,12 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import * as d3 from 'd3'
-import type { Phase } from '@/composables/usePomodoro'
+
+type CirclePhase = 'work' | 'break'
 
 interface Props {
   progress: number
-  phase: Phase
+  phase: CirclePhase
   size?: number
 }
 
@@ -41,21 +42,16 @@ const computedSize = computed(() => {
   return props.size
 })
 
-const phaseColors = {
+const phaseColors: Record<CirclePhase, { primary: string; secondary: string; gradient: string[] }> = {
   work: {
     primary: '#ef4444',
     secondary: '#fca5a5',
     gradient: ['#ef4444', '#dc2626']
   },
-  'short-break': {
+  break: {
     primary: '#3b82f6',
     secondary: '#93c5fd',
     gradient: ['#3b82f6', '#2563eb']
-  },
-  'long-break': {
-    primary: '#8b5cf6',
-    secondary: '#c4b5fd',
-    gradient: ['#8b5cf6', '#7c3aed']
   }
 }
 

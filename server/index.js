@@ -21,67 +21,65 @@ const io = new Server(httpServer, {
 app.use(cors())
 app.use(express.json())
 
-// In-memory timer state
-let timerState = {
-  startTimestamp: null,
-  isRunning: false,
-  startedBy: null
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'theloop328'
+
+// In-memory admin override. Reset on server restart (acceptable for MVP).
+let override = {
+  forcedOff: false,
+  reason: null,
+  setAt: null
 }
 
-// Get current timer state
-app.get('/api/timer', (req, res) => {
-  res.json(timerState)
+const checkPassword = (pw) => typeof pw === 'string' && pw === ADMIN_PASSWORD
+
+app.get('/api/override', (req, res) => {
+  res.json(override)
 })
 
-// Start timer (admin only - frontend should handle auth)
-app.post('/api/timer/start', (req, res) => {
-  timerState.startTimestamp = Date.now()
-  timerState.isRunning = true
-  timerState.startedBy = req.body.adminId || 'admin'
-
-  // Broadcast to all connected clients
-  io.emit('timer:started', timerState)
-
-  res.json(timerState)
+app.get('/api/time', (req, res) => {
+  res.json({ now: Date.now() })
 })
 
-// Stop timer (admin only - frontend should handle auth)
-app.post('/api/timer/stop', (req, res) => {
-  timerState.startTimestamp = null
-  timerState.isRunning = false
-  timerState.startedBy = null
-
-  // Broadcast to all connected clients
-  io.emit('timer:stopped', timerState)
-
-  res.json(timerState)
-})
-
-// Socket.io connection handling
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id)
 
-  // Send current timer state to newly connected client
-  socket.emit('timer:state', timerState)
-
-  // Handle admin starting timer
-  socket.on('timer:start', (data) => {
-    timerState.startTimestamp = Date.now()
-    timerState.isRunning = true
-    timerState.startedBy = data.adminId || 'admin'
-
-    // Broadcast to all clients including sender
-    io.emit('timer:started', timerState)
+  // Clock sync + current override state on connect
+  socket.emit('server:hello', {
+    now: Date.now(),
+    override
   })
 
-  // Handle admin stopping timer
-  socket.on('timer:stop', () => {
-    timerState.startTimestamp = null
-    timerState.isRunning = false
-    timerState.startedBy = null
+  socket.on('admin:verify', (data, ack) => {
+    const ok = checkPassword(data?.password)
+    if (typeof ack === 'function') ack({ ok })
+  })
 
-    // Broadcast to all clients including sender
-    io.emit('timer:stopped', timerState)
+  socket.on('admin:force-off', (data, ack) => {
+    if (!checkPassword(data?.password)) {
+      if (typeof ack === 'function') ack({ ok: false, error: 'unauthorized' })
+      return
+    }
+    override = {
+      forcedOff: true,
+      reason: typeof data.reason === 'string' ? data.reason.slice(0, 200) : null,
+      setAt: Date.now()
+    }
+    io.emit('override:updated', override)
+    if (typeof ack === 'function') ack({ ok: true, override })
+  })
+
+  socket.on('admin:resume', (data, ack) => {
+    if (!checkPassword(data?.password)) {
+      if (typeof ack === 'function') ack({ ok: false, error: 'unauthorized' })
+      return
+    }
+    override = { forcedOff: false, reason: null, setAt: null }
+    io.emit('override:updated', override)
+    if (typeof ack === 'function') ack({ ok: true, override })
+  })
+
+  socket.on('time:sync', (_data, ack) => {
+    if (typeof ack === 'function') ack({ now: Date.now() })
   })
 
   socket.on('disconnect', () => {
@@ -92,6 +90,6 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3001
 
 httpServer.listen(PORT, () => {
-  console.log(`🔄 The Loop server running on http://localhost:${PORT}`)
-  console.log(`📡 Socket.io ready for real-time sync`)
+  console.log(`The Loop server running on http://localhost:${PORT}`)
+  console.log('Schedule: Mon-Fri 11:00-17:00 IST, 50/10 cycles (computed client-side)')
 })

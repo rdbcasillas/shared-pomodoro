@@ -44,14 +44,14 @@ const computedSize = computed(() => {
 
 const phaseColors: Record<CirclePhase, { primary: string; secondary: string; gradient: string[] }> = {
   work: {
-    primary: '#ef4444',
-    secondary: '#fca5a5',
-    gradient: ['#ef4444', '#dc2626']
+    primary: '#c97a5f',
+    secondary: '#e8c9b8',
+    gradient: ['#c97a5f', '#b4674d']
   },
   break: {
-    primary: '#3b82f6',
-    secondary: '#93c5fd',
-    gradient: ['#3b82f6', '#2563eb']
+    primary: '#8a9a6b',
+    secondary: '#cdd4bb',
+    gradient: ['#8a9a6b', '#768757']
   }
 }
 
@@ -90,70 +90,58 @@ const setupVisualization = () => {
     .attr('offset', '100%')
     .attr('stop-color', currentColors.gradient[1] as string)
 
-  // Glow filter
-  const filter = defs
-    .append('filter')
-    .attr('id', 'glow')
-    .attr('x', '-50%')
-    .attr('y', '-50%')
-    .attr('width', '200%')
-    .attr('height', '200%')
-
-  filter
-    .append('feGaussianBlur')
-    .attr('stdDeviation', '4')
-    .attr('result', 'coloredBlur')
-
-  const feMerge = filter.append('feMerge')
-  feMerge.append('feMergeNode').attr('in', 'coloredBlur')
-  feMerge.append('feMergeNode').attr('in', 'SourceGraphic')
-
   const g = svg.append('g').attr('transform', `translate(${centerX},${centerY})`)
 
-  // Background circle
+  // Background ring — thin ink hair line for a paper-sketch feel
   g.append('circle')
     .attr('r', radius)
     .attr('fill', 'none')
-    .attr('stroke', '#e5e7eb')
-    .attr('stroke-width', 20)
-    .attr('opacity', 0.3)
+    .attr('stroke', 'rgba(45, 42, 38, 0.12)')
+    .attr('stroke-width', 6)
+
+  // Faint dashed inner guide ring (like a pencil draft)
+  g.append('circle')
+    .attr('r', radius - 18)
+    .attr('fill', 'none')
+    .attr('stroke', 'rgba(45, 42, 38, 0.08)')
+    .attr('stroke-width', 1)
+    .attr('stroke-dasharray', '2 5')
 
   // Progress arc
   const arc = d3
     .arc()
-    .innerRadius(radius - 10)
-    .outerRadius(radius + 10)
+    .innerRadius(radius - 3)
+    .outerRadius(radius + 3)
     .startAngle(-Math.PI / 2)
-    .cornerRadius(10)
+    .cornerRadius(4)
 
   const progressArc = g
     .append('path')
     .attr('class', 'progress-arc')
     .attr('fill', 'url(#progressGradient)')
-    .attr('filter', 'url(#glow)')
 
-  // Pulse circle for visual interest
+  // Pulse circle for a quiet breathing accent
   const pulseCircle = g
     .append('circle')
     .attr('r', radius - 30)
     .attr('fill', 'none')
     .attr('stroke', currentColors.secondary as string)
-    .attr('stroke-width', 2)
-    .attr('opacity', 0.5)
+    .attr('stroke-width', 1.5)
+    .attr('opacity', 0.35)
 
   // Animate pulse
   const pulse = () => {
     pulseCircle
       .transition()
-      .duration(2000)
+      .duration(2400)
       .ease(d3.easeSinInOut)
       .attr('r', radius - 25)
-      .attr('opacity', 0.8)
+      .attr('opacity', 0.55)
       .transition()
-      .duration(2000)
+      .duration(2400)
       .ease(d3.easeSinInOut)
       .attr('r', radius - 30)
-      .attr('opacity', 0.5)
+      .attr('opacity', 0.3)
       .on('end', pulse)
   }
   pulse()

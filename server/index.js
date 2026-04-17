@@ -90,6 +90,6 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3001
 
 httpServer.listen(PORT, () => {
-  console.log(`The Loop server running on http://localhost:${PORT}`)
+  console.log(`Cadence server running on http://localhost:${PORT}`)
   console.log('Schedule: Mon-Fri 11:00-17:00 IST, 50/10 cycles (computed client-side)')
 })

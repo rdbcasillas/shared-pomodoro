@@ -1,7 +1,7 @@
 {
-  "name": "the-loop-server",
+  "name": "cadence-server",
   "version": "1.0.0",
-  "description": "Backend server for The Loop - Shared Pomodoro Timer",
+  "description": "Backend server for Cadence - Shared Pomodoro Timer",
   "main": "index.js",
   "type": "module",
   "scripts": {

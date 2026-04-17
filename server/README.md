@@ -1,4 +1,4 @@
-# The Loop - Backend Server
+# Cadence - Backend Server
 
 Node.js + Express + Socket.io server for real-time timer synchronization.
 

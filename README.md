@@ -1,4 +1,4 @@
-# Deep Work Room
+# Cadence
 
 A static Pomodoro timer for a drop-in co-working group. Runs **Mon–Fri, 11am–5pm IST**, cycling **50 min work / 10 min break** — 6 blocks per day. Everything is computed client-side from wall-clock IST, so anyone loading the page sees the current block's remaining time. No server, no host, no login.
 

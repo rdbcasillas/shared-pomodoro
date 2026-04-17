@@ -20,8 +20,8 @@ export default defineConfig({
         config: true
       },
       manifest: {
-        name: 'Deep Work Room',
-        short_name: 'Deep Work',
+        name: 'Cadence',
+        short_name: 'Cadence',
         description:
           'Drop-in co-working Pomodoro. Mon–Fri 11am–5pm IST, 50/10 cycles — synced to wall-clock time.',
         theme_color: '#667eea',
@@ -32,7 +32,8 @@ export default defineConfig({
         scope: '/'
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2}']
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2,mp3}'],
+        globIgnores: ['**/clocks.png']
       },
       devOptions: {
         enabled: true

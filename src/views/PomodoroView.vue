@@ -1,21 +1,13 @@
 <template>
   <div class="pomodoro-container">
     <div class="header">
-      <h1 class="title">Deep Work Room</h1>
+      <h1 class="title font-hand">Cadence</h1>
       <p class="subtitle">Co-working · Mon–Fri · 11am–5pm IST</p>
       <a class="meet-link" :href="MEET_URL" target="_blank" rel="noopener">
         <span class="meet-dot"></span>
         Join Google Meet → {{ MEET_HANDLE }}
       </a>
-    </div>
-
-    <div v-if="!soundsEnabled" class="sound-banner">
-      <button class="sound-enable-btn" @click="enableSounds">
-        🔊 Click to enable phase-change sounds
-      </button>
-      <p class="sound-hint">
-        If you're screen-sharing on Meet, turn on <strong>"Share tab audio"</strong> so the room hears the beeps too.
-      </p>
+      <p class="ist-clock">{{ istClock }}</p>
     </div>
 
     <div class="content-wrapper">
@@ -51,14 +43,15 @@
             </div>
           </div>
 
-          <PomodoroCircle
-            :progress="pomodoroState.progress"
-            :phase="circlePhase"
-          />
-
-          <div class="countdown">
-            <div class="time-display">{{ formatTime(pomodoroState.remainingSeconds) }}</div>
-            <div class="time-label">remaining</div>
+          <div class="circle-wrap">
+            <PomodoroCircle
+              :progress="pomodoroState.progress"
+              :phase="circlePhase"
+            />
+            <div class="countdown">
+              <div class="time-display">{{ formatTime(pomodoroState.remainingSeconds) }}</div>
+              <div class="time-label">remaining</div>
+            </div>
           </div>
 
           <div class="phase-description">
@@ -101,7 +94,7 @@ const MEET_URL = 'https://meet.google.com/sgs-iykc-ubr'
 const MEET_HANDLE = 'meet.google.com/sgs-iykc-ubr'
 
 const { state: pomodoroState, formatTime, formatNextStart } = usePomodoro()
-const { completeSession, currentTask } = usePersonalTasks()
+const { completeSession, currentTasks } = usePersonalTasks()
 
 const circlePhase = computed<'work' | 'break'>(() =>
   pomodoroState.value.phase === 'break' ? 'break' : 'work'
@@ -120,9 +113,28 @@ const now = ref(Date.now())
 let nowInterval: number | undefined
 onMounted(() => {
   nowInterval = window.setInterval(() => (now.value = Date.now()), 1000)
+  window.addEventListener('pointerdown', handleFirstGesture, { once: true })
+  window.addEventListener('keydown', handleFirstGesture, { once: true })
+  window.addEventListener('touchstart', handleFirstGesture, { once: true })
 })
 onUnmounted(() => {
   if (nowInterval) clearInterval(nowInterval)
+  window.removeEventListener('pointerdown', handleFirstGesture)
+  window.removeEventListener('keydown', handleFirstGesture)
+  window.removeEventListener('touchstart', handleFirstGesture)
+})
+
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000
+const istClock = computed(() => {
+  const shifted = new Date(now.value + IST_OFFSET_MS)
+  const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][shifted.getUTCDay()]
+  const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][shifted.getUTCMonth()]
+  const date = shifted.getUTCDate()
+  const h24 = shifted.getUTCHours()
+  const hour = ((h24 + 11) % 12) + 1
+  const minute = shifted.getUTCMinutes().toString().padStart(2, '0')
+  const ampm = h24 < 12 ? 'AM' : 'PM'
+  return `${weekday}, ${date} ${month} · ${hour}:${minute} ${ampm} IST`
 })
 
 const formatCountdown = (ms: number): string => {
@@ -139,82 +151,67 @@ const formatCountdown = (ms: number): string => {
 }
 
 // ---- Audio ----
-// AudioContext must be created or resumed inside a user gesture, otherwise
-// browsers keep it 'suspended' and beeps are silent. We surface an explicit
-// "Enable sounds" button so a drop-in user can unlock audio deliberately.
-let audioContext: AudioContext | null = null
-const soundsEnabled = ref(false)
+// Three cues, named by what's ending (matches the user's mental model):
+//   pomo-over    → a work pomo just ended (→ entering a break)
+//   break-over   → a break just ended (→ entering a work block)
+//   day-complete → the final block of the day ended (→ off-hours)
+// HTMLAudioElement needs a user gesture before `.play()` is allowed, so we
+// silently prime each clip on the first pointerdown/keydown/touch.
+const pomoOverSound = new Audio('/pomo-over.mp3')
+const breakOverSound = new Audio('/break-over.mp3')
+const dayCompleteSound = new Audio('/day-complete.mp3')
+const allSounds = [pomoOverSound, breakOverSound, dayCompleteSound]
+allSounds.forEach((a) => (a.preload = 'auto'))
 
-const enableSounds = () => {
-  if (!audioContext) {
-    audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-  }
-  if (audioContext.state === 'suspended') {
-    audioContext.resume()
-  }
-  soundsEnabled.value = true
-  // Confirmation blip so the user knows it worked.
-  generateBeep(880, 0.12)
+const handleFirstGesture = () => {
+  // Prime each clip: play muted + immediately pause so future autoplay is allowed.
+  allSounds.forEach((a) => {
+    const prevVolume = a.volume
+    a.volume = 0
+    a.play()
+      .then(() => {
+        a.pause()
+        a.currentTime = 0
+        a.volume = prevVolume
+      })
+      .catch(() => {
+        a.volume = prevVolume
+      })
+  })
+  window.removeEventListener('pointerdown', handleFirstGesture)
+  window.removeEventListener('keydown', handleFirstGesture)
+  window.removeEventListener('touchstart', handleFirstGesture)
 }
 
-const generateBeep = (frequency: number, duration: number) => {
-  const ctx = audioContext
-  if (!ctx || ctx.state !== 'running') return
-  try {
-    const oscillator = ctx.createOscillator()
-    const gainNode = ctx.createGain()
-    oscillator.connect(gainNode)
-    gainNode.connect(ctx.destination)
-    oscillator.frequency.value = frequency
-    oscillator.type = 'sine'
-    gainNode.gain.setValueAtTime(0.3, ctx.currentTime)
-    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration)
-    oscillator.start(ctx.currentTime)
-    oscillator.stop(ctx.currentTime + duration)
-  } catch (error) {
-    console.error('Failed to play beep:', error)
-  }
-}
-
-// Work block starting: ascending 3-note chord, repeated twice.
-const playWorkStartSound = () => {
-  generateBeep(440, 0.15)
-  setTimeout(() => generateBeep(554, 0.15), 150)
-  setTimeout(() => generateBeep(659, 0.3), 300)
-  setTimeout(() => generateBeep(440, 0.15), 700)
-  setTimeout(() => generateBeep(554, 0.15), 850)
-  setTimeout(() => generateBeep(659, 0.3), 1000)
-}
-
-// Break starting: four gentle chimes.
-const playBreakStartSound = () => {
-  generateBeep(523, 0.2)
-  setTimeout(() => generateBeep(523, 0.2), 250)
-  setTimeout(() => generateBeep(523, 0.2), 500)
-  setTimeout(() => generateBeep(523, 0.2), 750)
+const play = (audio: HTMLAudioElement) => {
+  audio.currentTime = 0
+  audio.play().catch(() => {
+    // If the browser still refuses (no prior gesture), fail silently.
+  })
 }
 
 // ---- Phase transitions ----
-const previousRemainingSeconds = ref(pomodoroState.value.remainingSeconds)
+// The checklist stays live through the 10-min break so the user can strike,
+// edit, or remove items. It auto-commits when the break ends (→ work or
+// → off-hours). Users can also hit "Save to Recent Sessions" at any time.
+const WORK_DURATION_SEC = 50 * 60
 watch(
   () => pomodoroState.value.phase,
   (newPhase, oldPhase) => {
     if (!oldPhase || oldPhase === newPhase) return
 
-    // Save task history when a work block completes with a task entered.
-    if (oldPhase === 'work' && currentTask.value.trim()) {
-      completeSession('work', previousRemainingSeconds.value)
+    if (oldPhase === 'break' && currentTasks.value.length > 0) {
+      completeSession('work', WORK_DURATION_SEC)
     }
 
-    // Play sound for the *arriving* phase so the cue lines up with "heads up, switch now."
-    if (newPhase === 'work') playWorkStartSound()
-    else if (newPhase === 'break') playBreakStartSound()
-  }
-)
-watch(
-  () => pomodoroState.value.remainingSeconds,
-  (newSeconds) => {
-    previousRemainingSeconds.value = newSeconds
+    // Sound cues, named by what just ended.
+    if (newPhase === 'off-hours') {
+      play(dayCompleteSound)
+    } else if (oldPhase === 'work' && newPhase === 'break') {
+      play(pomoOverSound)
+    } else if (oldPhase === 'break' && newPhase === 'work') {
+      play(breakOverSound)
+    }
   }
 )
 </script>
@@ -222,27 +219,27 @@ watch(
 <style scoped>
 .pomodoro-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 2rem;
-  color: white;
+  padding: 2.5rem 2rem;
+  color: var(--ink);
 }
 
 .header {
   text-align: center;
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
 }
 
 .content-wrapper {
   display: grid;
   grid-template-columns: 1fr;
   gap: 2rem;
-  max-width: 1400px;
+  max-width: 1280px;
   margin: 0 auto;
 }
 
 @media (min-width: 1024px) {
   .content-wrapper {
-    grid-template-columns: 1fr 400px;
+    grid-template-columns: 1fr 360px;
+    gap: 2.5rem;
   }
 }
 
@@ -251,169 +248,146 @@ watch(
 }
 
 .title {
-  font-size: 3rem;
-  font-weight: 800;
+  font-size: 4rem;
+  line-height: 1;
   margin: 0;
-  background: linear-gradient(135deg, #fff 0%, #e0e7ff 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--ink);
 }
 
 .subtitle {
-  font-size: 1.25rem;
-  margin: 0.5rem 0 0 0;
-  opacity: 0.9;
-  font-weight: 300;
+  font-size: 0.9375rem;
+  margin: 0.75rem 0 0 0;
+  color: var(--ink-muted);
+  letter-spacing: 0.02em;
 }
 
 .meet-link {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  margin-top: 1rem;
-  padding: 0.625rem 1.125rem;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  margin-top: 1.25rem;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1px solid var(--ink-hair);
   border-radius: 999px;
-  color: white;
+  color: var(--ink);
   text-decoration: none;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   font-weight: 500;
   transition: all 0.2s;
 }
 
 .meet-link:hover {
-  background: rgba(255, 255, 255, 0.25);
-  transform: translateY(-1px);
+  background: var(--paper-soft);
+  border-color: var(--ink-soft);
 }
 
 .meet-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: #34d399;
-  box-shadow: 0 0 10px #34d399;
+  background: var(--break);
+  animation: soft-pulse 2.4s ease-in-out infinite;
 }
 
-.sound-banner {
-  max-width: 1400px;
-  margin: 0 auto 1.5rem;
-  padding: 1rem 1.25rem;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 1rem;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
+.ist-clock {
+  margin: 0.875rem 0 0 0;
+  font-size: 0.8125rem;
+  color: var(--ink-muted);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
-.sound-enable-btn {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 0.75rem;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
-  transition: all 0.2s;
-}
-
-.sound-enable-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 24px rgba(16, 185, 129, 0.5);
-}
-
-.sound-hint {
-  margin: 0;
-  font-size: 0.875rem;
-  opacity: 0.85;
+@keyframes soft-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .main-content {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1.5rem;
+}
+
+/* Paper card — translucent cream sheet so the backdrop whispers through */
+.off-hours,
+.timer-active,
+.info-card {
+  background: var(--card-bg);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid var(--ink-hair);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
 }
 
 .off-hours {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border-radius: 2rem;
   padding: 4rem 2rem;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .pulse-dot {
-  width: 20px;
-  height: 20px;
-  background: #fff;
+  width: 14px;
+  height: 14px;
+  background: var(--ink-soft);
   border-radius: 50%;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 0.5; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.2); }
+  animation: soft-pulse 2.4s ease-in-out infinite;
+  margin-bottom: 0.5rem;
 }
 
 .off-hours h2 {
   margin: 0;
-  font-size: 2rem;
+  font-family: 'Caveat', cursive;
+  font-size: 2.75rem;
+  font-weight: 700;
+  color: var(--ink);
 }
 
 .off-hours p {
-  margin: 0.25rem 0;
-  opacity: 0.9;
+  margin: 0.125rem 0;
+  color: var(--ink-soft);
 }
 
 .countdown-to-next {
-  font-size: 1.125rem;
-  opacity: 0.75 !important;
+  font-size: 0.9375rem;
+  color: var(--ink-muted) !important;
   font-variant-numeric: tabular-nums;
-}
-
-.timer-active {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border-radius: 2rem;
-  padding: 2rem;
+  letter-spacing: 0.02em;
 }
 
 .phase-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: 1.75rem;
   flex-wrap: wrap;
   gap: 1rem;
 }
 
 .phase-badge {
-  padding: 0.75rem 1.5rem;
-  border-radius: 2rem;
-  font-weight: 600;
-  font-size: 1.125rem;
+  padding: 0.375rem 0.875rem;
+  border-radius: 999px;
+  font-weight: 500;
+  font-size: 0.75rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.12em;
+  border: 1px solid;
 }
 
 .phase-badge.phase-work {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
+  background: var(--work-soft);
+  border-color: var(--work);
+  color: #8b4a35;
 }
 
 .phase-badge.phase-break {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+  background: var(--break-soft);
+  border-color: var(--break);
+  color: #5b6a44;
 }
 
 .cycle-progress {
@@ -424,10 +398,10 @@ watch(
 }
 
 .progress-label {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.7;
+  letter-spacing: 0.15em;
+  color: var(--ink-muted);
   font-weight: 500;
 }
 
@@ -438,84 +412,90 @@ watch(
 }
 
 .progress-dot {
-  width: 14px;
-  height: 14px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   transition: all 0.3s ease;
+  border: 1px solid var(--ink-hair);
 }
 
 .progress-dot.dot-done {
-  background: rgba(255, 255, 255, 0.4);
+  background: var(--ink-soft);
+  border-color: var(--ink-soft);
 }
 
 .progress-dot.dot-work {
-  background: #ef4444;
-  box-shadow: 0 0 12px #ef4444;
-  animation: pulse-dot 2s ease-in-out infinite;
+  background: var(--work);
+  border-color: var(--work);
+  animation: soft-pulse 2s ease-in-out infinite;
 }
 
 .progress-dot.dot-break {
-  background: #3b82f6;
-  box-shadow: 0 0 12px #3b82f6;
-  animation: pulse-dot 2s ease-in-out infinite;
+  background: var(--break);
+  border-color: var(--break);
+  animation: soft-pulse 2s ease-in-out infinite;
 }
 
 .progress-dot.dot-future {
-  background: rgba(255, 255, 255, 0.15);
+  background: transparent;
 }
 
-@keyframes pulse-dot {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.3); }
+.circle-wrap {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
 }
 
 .countdown {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   text-align: center;
-  margin: 2rem 0;
+  pointer-events: none;
 }
 
 .time-display {
-  font-size: 4rem;
+  font-family: 'Caveat', cursive;
+  font-size: 4.5rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.05em;
-  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.2);
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: var(--ink);
 }
 
 .time-label {
-  font-size: 1rem;
+  font-size: 0.625rem;
   text-transform: uppercase;
-  letter-spacing: 0.15em;
-  opacity: 0.7;
-  margin-top: 0.5rem;
+  letter-spacing: 0.25em;
+  color: var(--ink-muted);
+  margin-top: 0.375rem;
 }
 
 .phase-description {
   text-align: center;
-  margin-top: 2rem;
-  padding: 1.5rem;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--ink-hair);
 }
 
 .phase-description p {
   margin: 0;
-  font-size: 1.125rem;
+  font-size: 0.9375rem;
   line-height: 1.6;
-  opacity: 0.9;
-}
-
-.info-card {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border-radius: 1rem;
-  padding: 1.5rem;
+  color: var(--ink-soft);
+  font-style: italic;
 }
 
 .info-card h3 {
   margin: 0 0 1rem 0;
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-family: 'Caveat', cursive;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--ink);
 }
 
 .info-card ul {
@@ -524,35 +504,36 @@ watch(
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.625rem;
 }
 
 .info-card li {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  font-size: 1rem;
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
 }
 
 .phase-dot {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   display: inline-block;
+  flex-shrink: 0;
 }
 
 .phase-dot.work {
-  background: #ef4444;
-  box-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+  background: var(--work);
 }
 
 .phase-dot.break {
-  background: #3b82f6;
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
+  background: var(--break);
 }
 
 .phase-dot.off {
-  background: rgba(255, 255, 255, 0.4);
+  background: transparent;
+  border: 1px solid var(--ink-hair);
 }
 
 @media (max-width: 1023px) {
@@ -569,22 +550,23 @@ watch(
 }
 
 @media (max-width: 639px) {
-  .pomodoro-container { padding: 1.25rem; }
-  .title { font-size: 2rem; }
-  .subtitle { font-size: 1rem; }
+  .pomodoro-container { padding: 1.5rem 1.25rem; }
+  .title { font-size: 2.75rem; }
+  .subtitle { font-size: 0.875rem; }
   .meet-link { font-size: 0.8125rem; }
-  .time-display { font-size: 2.75rem; }
-  .timer-active { padding: 1.5rem; }
+  .time-display { font-size: 3.25rem; }
+  .timer-active,
+  .off-hours,
+  .info-card { padding: 1.5rem; }
+  .off-hours { padding: 3rem 1.5rem; }
   .phase-header { flex-direction: column; align-items: flex-start; }
   .cycle-progress { align-items: flex-start; }
-  .phase-badge { font-size: 0.875rem; padding: 0.5rem 1rem; }
 }
 
 @media (max-height: 600px) and (orientation: landscape) {
   .pomodoro-container { padding: 1rem; }
   .header { margin-bottom: 1rem; }
-  .title { font-size: 1.75rem; }
-  .time-display { font-size: 2.5rem; }
-  .countdown { margin: 1rem 0; }
+  .title { font-size: 2.25rem; }
+  .time-display { font-size: 2.75rem; }
 }
 </style>

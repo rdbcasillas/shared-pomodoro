@@ -5,7 +5,7 @@
       <p class="subtitle">Personal tracking · Stored locally</p>
     </div>
 
-    <div class="current-task-section">
+    <div v-if="!isOffHours" class="current-task-section">
       <div class="current-task-label">
         <span>This block</span>
         <span v-if="currentTasks.length > 0" class="task-counter">
@@ -158,6 +158,11 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
 import { usePersonalTasks, type Task } from '@/composables/usePersonalTasks'
+
+interface Props {
+  isOffHours?: boolean
+}
+withDefaults(defineProps<Props>(), { isOffHours: false })
 
 const {
   currentTasks,

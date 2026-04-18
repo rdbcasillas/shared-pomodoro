@@ -77,7 +77,7 @@
       </div>
 
       <div class="side-panel">
-        <PersonalTaskTracker />
+        <PersonalTaskTracker :is-off-hours="pomodoroState.phase === 'off-hours'" />
       </div>
     </div>
   </div>

@@ -5,7 +5,7 @@
       <p class="subtitle">Co-working · Mon–Fri · 11am–5pm IST</p>
       <a class="meet-link" :href="MEET_URL" target="_blank" rel="noopener">
         <span class="meet-dot"></span>
-        Join Google Meet → {{ MEET_HANDLE }}
+        Work with others →
       </a>
       <p class="ist-clock">{{ istClock }}</p>
     </div>
@@ -80,6 +80,45 @@
         <PersonalTaskTracker :is-off-hours="pomodoroState.phase === 'off-hours'" />
       </div>
     </div>
+
+    <details class="suggestions-section">
+      <summary class="suggestions-toggle">Not sure what to work on?</summary>
+      <div class="suggestions-content">
+        <p class="suggestions-intro">Some reading for a meaningful session:</p>
+        <ul class="suggestions-list">
+          <li>
+            <a href="https://civilizationemerging.com/dharma-inquiry-2/" target="_blank" rel="noopener">
+              Dharma Inquiry
+            </a>
+            — Explore what you truly value
+          </li>
+          <li>
+            <a href="https://www.lesswrong.com/highlights" target="_blank" rel="noopener">
+              LessWrong Highlights
+            </a>
+            — Best posts on rationality
+          </li>
+          <li>
+            <a href="https://donellameadows.org/archives/leverage-points-places-to-intervene-in-a-system/" target="_blank" rel="noopener">
+              Leverage Points
+            </a>
+            — Donella Meadows on systems thinking
+          </li>
+          <li>
+            <a href="https://consilienceproject.org/development-in-progress/" target="_blank" rel="noopener">
+              Development in Progress
+            </a>
+            — Questioning traditional views of human progress
+          </li>
+          <li>
+            <a href="https://systems-souls-society.com/tasting-the-pickle-ten-flavours-of-meta-crisis-and-the-appetite-for-a-new-civilisation/" target="_blank" rel="noopener">
+              Tasting the Pickle
+            </a>
+            — Ten flavours of meta-crisis
+          </li>
+        </ul>
+      </div>
+    </details>
   </div>
 </template>
 
@@ -122,7 +161,23 @@ onUnmounted(() => {
   window.removeEventListener('pointerdown', handleFirstGesture)
   window.removeEventListener('keydown', handleFirstGesture)
   window.removeEventListener('touchstart', handleFirstGesture)
+  document.title = 'Cadence'
 })
+
+// Update tab title with countdown
+watch(
+  () => [pomodoroState.value.phase, pomodoroState.value.remainingSeconds] as const,
+  ([phase, remaining]) => {
+    if (phase === 'off-hours') {
+      document.title = 'Cadence'
+    } else {
+      const time = formatTime(remaining)
+      const label = phase === 'work' ? 'Work' : 'Break'
+      document.title = `${time} ${label} | Cadence`
+    }
+  },
+  { immediate: true }
+)
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000
 const istClock = computed(() => {
@@ -568,5 +623,77 @@ watch(
   .header { margin-bottom: 1rem; }
   .title { font-size: 2.25rem; }
   .time-display { font-size: 2.75rem; }
+}
+
+/* Collapsible suggestions at the bottom */
+.suggestions-section {
+  max-width: 1280px;
+  margin: 2.5rem auto 0;
+  padding-top: 1.5rem;
+  border-top: 1px dashed var(--ink-hair);
+}
+
+.suggestions-toggle {
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--ink-muted);
+  font-style: italic;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.suggestions-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.suggestions-toggle::before {
+  content: '+';
+  font-style: normal;
+  font-weight: 500;
+  font-size: 1rem;
+  color: var(--ink-soft);
+  transition: transform 0.2s;
+}
+
+details[open] .suggestions-toggle::before {
+  content: '−';
+}
+
+.suggestions-content {
+  margin-top: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--card-bg);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid var(--ink-hair);
+  border-radius: var(--radius);
+}
+
+.suggestions-intro {
+  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+
+.suggestions-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.suggestions-list li {
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+
+.suggestions-list a {
+  color: var(--ink);
+  font-weight: 500;
 }
 </style>

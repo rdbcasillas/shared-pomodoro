@@ -101,7 +101,7 @@
     <details class="suggestions-section">
       <summary class="suggestions-toggle">Not sure what to work on?</summary>
       <div class="suggestions-content">
-        <p class="suggestions-intro">Some reading for a meaningful session:</p>
+        <p class="suggestions-intro">Some deep readings to engage with:</p>
         <ul class="suggestions-list">
           <li>
             <a href="https://claude.ai/public/artifacts/532cdf10-05dc-4ca3-9859-78694039f9d4" target="_blank" rel="noopener">
@@ -119,7 +119,7 @@
             <a href="https://www.lesswrong.com/highlights" target="_blank" rel="noopener">
               LessWrong Highlights
             </a>
-            — Best posts on rationality
+            — Interesting posts on rationality
           </li>
           <li>
             <a href="https://donellameadows.org/archives/leverage-points-places-to-intervene-in-a-system/" target="_blank" rel="noopener">

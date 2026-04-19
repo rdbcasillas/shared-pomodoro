@@ -104,6 +104,12 @@
         <p class="suggestions-intro">Some reading for a meaningful session:</p>
         <ul class="suggestions-list">
           <li>
+            <a href="https://claude.ai/public/artifacts/532cdf10-05dc-4ca3-9859-78694039f9d4" target="_blank" rel="noopener">
+              Does co-working actually work?
+            </a>
+            — Evidence is all over the place
+          </li>
+          <li>
             <a href="https://civilizationemerging.com/dharma-inquiry-2/" target="_blank" rel="noopener">
               Dharma Inquiry
             </a>

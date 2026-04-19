@@ -77,6 +77,23 @@
       </div>
 
       <div class="side-panel">
+        <div class="rules-card">
+          <h3>How to Participate</h3>
+          <ol class="rules-list">
+            <li>
+              <strong>Pick one thing</strong> you want to complete or make real progress on in the next 50 minutes.
+            </li>
+            <li>
+              <strong>Share in chat</strong> what you're working on. It may help with accountability.
+            </li>
+            <li>
+              <strong>During breaks</strong>, share in chat how it went, any insights, or interesting links.
+            </li>
+            <li>
+              <strong>Mics off</strong> throughout. Use the chatbox to talk during breaks.
+            </li>
+          </ol>
+        </div>
         <PersonalTaskTracker :is-off-hours="pomodoroState.phase === 'off-hours'" />
       </div>
     </div>
@@ -545,12 +562,42 @@ watch(
   font-style: italic;
 }
 
-.info-card h3 {
+.info-card h3,
+.rules-card h3 {
   margin: 0 0 1rem 0;
   font-family: 'Caveat', cursive;
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--ink);
+}
+
+.rules-card {
+  background: var(--card-bg);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid var(--ink-hair);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.rules-list {
+  margin: 0;
+  padding: 0 0 0 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.rules-list li {
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.rules-list strong {
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .info-card ul {

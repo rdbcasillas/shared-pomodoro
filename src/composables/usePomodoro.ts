@@ -2,14 +2,14 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 export type Phase = 'work' | 'break' | 'off-hours'
 
-// Schedule config — Mon–Fri 11:00–17:00 IST, 50 min work + 10 min break, 6 blocks/day.
+// Schedule config — Mon–Fri 10:00–17:00 IST, 50 min work + 10 min break, 7 blocks/day.
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000 // IST is UTC+5:30, no DST
-const WINDOW_START_SEC = 11 * 3600 // 11:00 IST
+const WINDOW_START_SEC = 10 * 3600 // 10:00 IST
 const WINDOW_END_SEC = 17 * 3600 // 17:00 IST
 const BLOCK_SEC = 60 * 60 // 60 min
 const WORK_SEC = 50 * 60 // 50 min
 const BREAK_SEC = 10 * 60 // 10 min
-export const BLOCKS_PER_DAY = Math.floor((WINDOW_END_SEC - WINDOW_START_SEC) / BLOCK_SEC) // 6
+export const BLOCKS_PER_DAY = Math.floor((WINDOW_END_SEC - WINDOW_START_SEC) / BLOCK_SEC) // 7
 
 export interface PomodoroState {
   phase: Phase

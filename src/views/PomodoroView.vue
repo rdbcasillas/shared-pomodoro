@@ -2,7 +2,7 @@
   <div class="pomodoro-container">
     <div class="header">
       <h1 class="title font-hand">Cadence</h1>
-      <p class="subtitle">Co-working · Mon–Fri · 11am–5pm IST</p>
+      <p class="subtitle">Co-working · Mon–Fri · 10am–5pm IST</p>
       <a class="meet-link" :href="MEET_URL" target="_blank" rel="noopener">
         <span class="meet-dot"></span>
         Work with others →
@@ -70,7 +70,7 @@
             <ul>
               <li><span class="phase-dot work"></span> 50 min Work</li>
               <li><span class="phase-dot break"></span> 10 min Break</li>
-              <li><span class="phase-dot off"></span> Mon–Fri · 11am–5pm IST · 6 blocks/day</li>
+              <li><span class="phase-dot off"></span> Mon–Fri · 10am–5pm IST · 7 blocks/day</li>
             </ul>
           </div>
         </div>

@@ -23,7 +23,7 @@ export default defineConfig({
         name: 'Cadence',
         short_name: 'Cadence',
         description:
-          'Drop-in co-working Pomodoro. Mon–Fri 11am–5pm IST, 50/10 cycles — synced to wall-clock time.',
+          'Drop-in co-working Pomodoro. Mon–Fri 10am–5pm IST, 50/10 cycles — synced to wall-clock time.',
         theme_color: '#667eea',
         background_color: '#f0e9d6',
         display: 'standalone',
